@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Voice VK
 // @namespace    http://tampermonkey.net/
-// @version      0.1
+// @version      0.2
 // @description  Script for viewing the text of voice messages on VK.COM
 // @author       Korolevsky Kirill
 // @homepage     https://korolevsky.me/
@@ -11,6 +11,9 @@
 // ==/UserScript==
 
 function Inj() {
+    const Logs = false;
+
+
     function checkMessages(el) {
         var messages = el.querySelectorAll('.im-mess');
         if (!messages) return;
@@ -27,34 +30,46 @@ function Inj() {
     }
 
     function setText(element, transcript) {
-        if (transcript == null || transcript == '') return;
+        const find = document.getElementById(`audio-text-message-${element.getAttribute('data-msgid').toString()}`);
+        if(typeof(find) != "undefined" && find !== null) return;
 
-        var icon = document.createElement("span");
-        icon.style = "color: rgba(127,127,127,1.0)";
-        icon.innerHTML = '<span style="color: black">Сказал(-а):</span> ' + transcript;
+        var text = document.createElement("span");
+        text.setAttribute("id", `audio-text-message-${element.getAttribute('data-msgid').toString()}`);
+        text.style = "color: rgba(127,127,127,1.0)";
+
+        if(transcript == "" || transcript == null) text.innerHTML = '<span style="color: black">В голосовом сообщении слова не найдены.</span>';
+        else text.innerHTML = '<span style="color: black">Сказал(-а):</span> ' + transcript;
 
         var injectElement = element.getElementsByClassName('im-mess--text');
-        injectElement[0].prepend(icon);
+        injectElement[0].prepend(text);
         return transcript;
     }
 
     function checkMessage(msg) {
-        API("messages.getById", { message_ids: msg.getAttribute('data-msgid') })
-        .then((r) => {
-            if(r.response.items[0] == undefined) return r;
-            else if(r.response.items[0].attachments[0] == undefined) return r;
+        if(Logs) console.log(`📍 Начинаю распознование голсового сообщения с ID ${msg.getAttribute('data-msgid')}`);
+        let interval = setInterval(() => {
+           API("messages.getById", { message_ids: msg.getAttribute('data-msgid') })
+               .then((r) => {
+               if(r.response.items[0] == undefined) return r;
+               else if(r.response.items[0].attachments[0] == undefined) return r;
 
-            r = r.response.items[0].attachments[0].audio_message.transcript;
+               r = r.response.items[0].attachments[0].audio_message.transcript;
+               clearInterval(interval);
+               if(Logs) console.log(`😇 Сообщение ${msg.getAttribute('data-msgid')} успешно распознано!`);
 
-            setText(msg, r);
-            return r;
-        }).catch(function (e) {
-            console.error(e);
-        });
+               setText(msg, r);
+               return r;
+           }).catch((e) => {
+               if(Logs) {
+                   console.log(`😱 При распозновании сообщения ${msg.getAttribute('data-msgid')} произошла ошибка.\n\nЗапускаю через 1500ms новое распознование текста..`);
+                   console.error(e);
+               }
+           });
+        }, 1500);
     }
 
-    var observer = new MutationObserver(function (mutations) {
-        mutations.forEach(function (mutation) {
+    var observer = new MutationObserver(async function (mutations) {
+        mutations.forEach(async function (mutation) {
             if (mutation.target.nodeType !== 1) return;
             checkMessages(mutation.target);
         });
