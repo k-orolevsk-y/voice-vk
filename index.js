@@ -37,7 +37,7 @@ function Inj() {
         text.setAttribute("id", `audio-text-message-${element.getAttribute('data-msgid').toString()}`);
         text.style = "color: rgba(127,127,127,1.0)";
 
-        if(transcript == "" || transcript == null) text.innerHTML = '<span style="color: black">В голосовом сообщении слова не найдены.</span>';
+        if(transcript == "" || transcript == null) text.innerHTML = 'В голосовом сообщении слова не найдены.';
         else text.innerHTML = '<span style="color: black">Сказал(-а):</span> ' + transcript;
 
         var injectElement = element.getElementsByClassName('im-mess--text');
