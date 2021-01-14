@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Voice VK
 // @namespace    http://tampermonkey.net/
-// @version      0.2
+// @version      0.3
 // @description  Script for viewing the text of voice messages on VK.COM
 // @author       Korolevsky Kirill
 // @homepage     https://korolevsky.me/
@@ -12,6 +12,25 @@
 
 function Inj() {
     const Logs = false;
+
+    function addTextVoice(id, text) {
+        let texts = JSON.parse(localStorage.getItem("cacheTextVoices"));
+        if(texts == null) texts = {};
+
+        texts = {...texts, [id]: text};
+        localStorage.setItem("cacheTextVoices", JSON.stringify(texts));
+
+        if(Logs) console.log(`📍 Сообщение ${id} сохранено в localStorage!`);
+    }
+
+    function getTextVoice(id) {
+        const texts = JSON.parse(localStorage.getItem("cacheTextVoices"));
+        if(texts == null) return null;
+
+
+        if(Logs) console.log(`📍 Сообщение ${id} получено из localStorage!`);
+        return texts[id];
+    }
 
 
     function checkMessages(el) {
@@ -46,10 +65,25 @@ function Inj() {
     }
 
     function checkMessage(msg) {
+        if(msg.getAttribute('data-msgid').toString().indexOf("_") > -1) return 0;
+
+        const find = getTextVoice(msg.getAttribute('data-msgid'));
+        if(typeof(find) != "undefined" && find !== null) {
+            setText(msg, find);
+            return 0;
+        }
+
         if(Logs) console.log(`📍 Начинаю распознование голсового сообщения с ID ${msg.getAttribute('data-msgid')}`);
+        let attempts = 0;
         let interval = setInterval(() => {
            API("messages.getById", { message_ids: msg.getAttribute('data-msgid') })
                .then((r) => {
+               if(attempts >= 10) {
+                   clearInterval(interval);
+                   return r;
+               }
+               attempts += 1;
+
                if(r.response.items[0] == undefined) return r;
                else if(r.response.items[0].attachments[0] == undefined) return r;
 
@@ -57,15 +91,16 @@ function Inj() {
                clearInterval(interval);
                if(Logs) console.log(`😇 Сообщение ${msg.getAttribute('data-msgid')} успешно распознано!`);
 
+               addTextVoice(msg.getAttribute('data-msgid'), r);
                setText(msg, r);
                return r;
            }).catch((e) => {
                if(Logs) {
-                   console.log(`😱 При распозновании сообщения ${msg.getAttribute('data-msgid')} произошла ошибка.\n\nЗапускаю через 1500ms новое распознование текста..`);
+                   console.log(`😱 При распозновании сообщения ${msg.getAttribute('data-msgid')} произошла ошибка.\n\nЗапускаю через 5000ms новое распознование текста..`);
                    console.error(e);
                }
            });
-        }, 1500);
+        }, 5000);
     }
 
     var observer = new MutationObserver(async function (mutations) {
